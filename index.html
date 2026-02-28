@@ -1,0 +1,188 @@
+<!DOCTYPE html> 
+<html lang="en"> 
+<head> 
+  <meta charset="UTF-8"> 
+  <title>Nexora V2 Public Deployment Panel</title> 
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+  <style> 
+    /* Body and general layout */ 
+    body { 
+      font-family: monospace; 
+      background: linear-gradient(120deg,#111,#222); 
+      color: #f0f0f0; 
+      padding: 20px; 
+      margin: 0; 
+    } 
+ 
+    h1, h2 { margin: 10px 0; } 
+ 
+    /* Inputs and buttons */ 
+    input, button { 
+      padding: 12px; 
+      margin: 5px 0; 
+      font-size: 16px; 
+      width: 100%; 
+      max-width: 400px; 
+      box-sizing: border-box; 
+      border-radius: 6px; 
+      transition: all 0.2s ease-in-out; 
+      border: none; 
+    } 
+ 
+    button:hover { transform: scale(1.05); cursor: pointer; } 
+    button:active { transform: scale(0.95); } 
+ 
+    /* Method buttons */ 
+    .method-btn { 
+      padding: 12px; 
+      margin: 10px 0; 
+      border-radius: 10px; 
+      font-weight: bold; 
+      background: linear-gradient(45deg,#ff0055,#ff9900); 
+      color: white; 
+      width: 100%; 
+      max-width: 250px; 
+    } 
+ 
+    /* QR and code styling */ 
+    #qr { width: 100%; max-width: 250px; height: auto; display: none; border-radius:12px; margin-top:10px; } 
+    #code { max-width: 250px; word-wrap: break-word; background:#222; padding:10px; border-radius:8px; display:inline-block; } 
+    .hidden { display: none; } 
+ 
+    /* Status section */ 
+    #status { margin: 10px 0; padding: 8px; background: #111; border-radius:6px; max-width:400px; } 
+ 
+    /* Responsive zoom */ 
+    @media (max-width: 480px) { body { font-size: 14px; } } 
+    @media (min-width: 481px) and (max-width: 768px) { body { font-size: 15px; } } 
+    @media (min-width: 769px) { body { font-size: 16px; } } 
+  </style> 
+</head> 
+<body> 
+  <h1>Nexora V2 Public Deployment Panel</h1> 
+ 
+  <label>User ID:</label><br> 
+  <input id="userId" placeholder="User ID"><br> 
+ 
+  <label>Authorization Key:</label><br> 
+  <input id="authKey" placeholder="Auth Key"><br> 
+ 
+  <div> 
+    <h2>Select Deployment Method:</h2> 
+    <button class="method-btn" onclick="showQR()">QR Login</button> 
+    <button class="method-btn" onclick="showCodeLogin()">Code Login</button> 
+  </div> 
+ 
+  <!-- QR Login Section --> 
+  <div id="qr-section" class="hidden"> 
+    <h2>QR Code:</h2> 
+    <img id="qr" src=""> 
+  </div> 
+ 
+  <!-- Code Login Section --> 
+  <div id="code-section" class="hidden"> 
+    <label>Phone Number (for code login):</label><br> 
+    <input id="phone" placeholder="234xxxxxxxxxx"><br> 
+ 
+    <h2>Pairing Code:</h2> 
+    <div id="code">—</div> 
+    <button id="copyBtn">Copy Code</button> 
+  </div> 
+ 
+  <div> 
+    <button onclick="deployBot()">Deploy Bot</button> 
+    <button onclick="restartBot()">Restart Bot</button> 
+    <button onclick="shutdownBot()">Shutdown Bot</button> 
+  </div> 
+ 
+  <h2>Status:</h2> 
+  <div id="status">—</div> 
+ 
+  <script src="/socket.io/socket.io.js"></script> 
+  <script> 
+    const socket = io(); 
+ 
+    // Toggle login methods 
+    function showQR() { 
+      document.getElementById("qr-section").classList.remove("hidden"); 
+      document.getElementById("code-section").classList.add("hidden"); 
+    } 
+ 
+    function showCodeLogin() { 
+      document.getElementById("code-section").classList.remove("hidden"); 
+      document.getElementById("qr-section").classList.add("hidden"); 
+    } 
+ 
+    // Deploy bot 
+    async function deployBot() { 
+      const userId = document.getElementById("userId").value; 
+      const key = document.getElementById("authKey").value; 
+      const phone = document.getElementById("phone").value; 
+ 
+      if (!userId || !key) return alert("User ID and Auth Key are required!"); 
+ 
+      const payload = { userId, key }; 
+      if (!document.getElementById("code-section").classList.contains("hidden")) payload.phone = phone; 
+ 
+      const res = await fetch("/deploy", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify(payload) 
+      }); 
+ 
+      const data = await res.json(); 
+      document.getElementById("status").innerText = data.message; 
+    } 
+ 
+    // Restart bot 
+    async function restartBot() { 
+      const userId = document.getElementById("userId").value; 
+      if (!userId) return alert("Enter User ID!"); 
+      const res = await fetch("/restart", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ userId }) 
+      }); 
+      const data = await res.json(); 
+      document.getElementById("status").innerText = data.message; 
+    } 
+ 
+    // Shutdown bot 
+    async function shutdownBot() { 
+      const userId = document.getElementById("userId").value; 
+      if (!userId) return alert("Enter User ID!"); 
+      const res = await fetch("/shutdown", { 
+        method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ userId }) 
+      }); 
+      const data = await res.json(); 
+      document.getElementById("status").innerText = data.message; 
+    } 
+ 
+    // Socket.io events 
+    socket.on("qr", qr => { 
+      document.getElementById("qr").src = qr; 
+      document.getElementById("qr").style.display = "block"; 
+    }); 
+ 
+    socket.on("status", st => { 
+      document.getElementById("status").innerText = st; 
+    }); 
+ 
+    // Copy pairing code 
+    const copyBtn = document.getElementById("copyBtn"); 
+    copyBtn.addEventListener("click", () => { 
+      const codeText = document.getElementById("code").innerText; 
+      if (!codeText || codeText === "—") return alert("No code to copy!"); 
+navigator.clipboard.writeText(codeText) 
+.then(() => alert("Pairing code copied!")) 
+.catch(() => alert("Failed to copy!")); 
+}); 
+// Update pairing code from server 
+socket.on("pairing-code", code => { 
+document.getElementById("code").innerText = code; 
+}); 
+</script> 
+</body> 
+</html>
